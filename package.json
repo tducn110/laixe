@@ -1,0 +1,20 @@
+{
+  "name": "driving-quiz-600",
+  "version": "1.0.0",
+  "description": "Luyện 600 câu GPLX 2025 - Cục CSGT",
+  "main": "js/app.js",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "certify": "python3 scripts/certify_source.py"
+  },
+  "keywords": [
+    "gplx",
+    "driving-theory",
+    "vietnam"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "puppeteer-core": "^25.10.0"
+  }
+}

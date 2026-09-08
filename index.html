@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Luyện 600 câu GPLX 2025</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">600</div>
+        <div><strong>Luyện GPLX</strong><span>Bộ câu hỏi 2025</span></div>
+      </div>
+
+      <nav class="nav-stack" aria-label="Chế độ luyện tập">
+        <button class="nav-btn active" data-mode="all">Tất cả 600 câu</button>
+        <button class="nav-btn accent-nav" data-mode="exam">⏱ Thi thử (30 câu / 20 phút)</button>
+        <button class="nav-btn" data-mode="random">Ngẫu nhiên 20 câu</button>
+        <button class="nav-btn" data-mode="wrong">Ôn câu đã sai <span id="wrongBadge">0</span></button>
+        <button class="nav-btn" data-mode="bookmarked">Câu đã đánh dấu <span id="bookmarkBadge">0</span></button>
+        <button class="nav-btn accent-nav" data-mode="trainer">⚡ Sa hình Trainer</button>
+        <button class="nav-btn" data-mode="stats">📊 Điểm yếu & Tiến độ</button>
+      </nav>
+
+      <div class="chapter-list" id="chapterList"></div>
+      <button class="ghost danger" id="resetProgress">Xóa tiến độ</button>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menuBtn" aria-label="Mở menu">☰</button>
+        <div class="session-title">
+          <strong id="modeTitle">Tất cả 600 câu</strong>
+          <span id="modeSubtitle">Học theo thứ tự của tài liệu</span>
+        </div>
+        <div class="top-actions">
+          <div class="exam-timer-box hidden" id="examTimerBox">
+            <span class="exam-timer-icon">⏱</span>
+            <span class="exam-timer-text" id="examTimerText">20:00</span>
+          </div>
+          <button class="primary btn-sm hidden" id="topExamSubmitBtn">Nộp bài</button>
+          <label class="jump-control" id="jumpControl">Câu <input id="jumpInput" type="number" min="1" max="600" inputmode="numeric"><button id="jumpBtn">Đi</button></label>
+        </div>
+      </header>
+
+      <!-- Subtopics horizontal bar for Chapter 6 and Trainer mode -->
+      <nav class="subtopic-bar hidden" id="subtopicBar" aria-label="Lọc theo quy tắc sa hình"></nav>
+
+      <!-- Exam Question Palette (30 questions grid) -->
+      <nav class="exam-palette hidden" id="examPalette" aria-label="Danh sách 30 câu thi thử"></nav>
+
+      <section class="progress-panel" id="progressPanel">
+        <div class="progress-copy"><span id="progressText">Câu 1 / 600</span><span id="scoreText">Đúng 0 · Sai 0</span></div>
+        <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+      </section>
+
+      <section class="quiz-card" id="quizCard">
+        <div class="question-meta">
+          <span class="pill" id="questionNumber">Câu 1</span>
+          <span class="pill subtle" id="chapterName"></span>
+          <span class="pill topic-pill hidden" id="topicName"></span>
+          <span class="pill critical-pill hidden" id="criticalBadge">⚠ CÂU ĐIỂM LIỆT</span>
+          <button class="trainer-toggle-btn hidden" id="trainerModeBtn">⚡ Phân tích 5 bước</button>
+          <button class="bookmark" id="bookmarkBtn" aria-label="Đánh dấu câu hỏi" title="Đánh dấu">☆</button>
+        </div>
+
+        <!-- Sa hình Step-by-Step Trainer Guide (Interactive mental model) -->
+        <div class="trainer-panel hidden" id="trainerPanel">
+          <div class="trainer-header">
+            <div class="trainer-title"><strong>⚡ Sa hình Trainer — 5 bước tư duy chuẩn</strong><span>Phân tích theo quy tắc trước khi chọn đáp án</span></div>
+            <button class="trainer-close" id="trainerCloseBtn" title="Đóng hướng dẫn">✕</button>
+          </div>
+          <div class="trainer-stepper" id="trainerStepper"></div>
+          <div class="trainer-step-content" id="trainerStepContent"></div>
+          <div class="trainer-step-actions">
+            <button class="secondary btn-sm" id="trainerPrevStep">← Bước trước</button>
+            <button class="primary btn-sm" id="trainerNextStep">Bước tiếp theo →</button>
+          </div>
+        </div>
+
+        <h1 id="questionText"></h1>
+        <div class="question-images" id="questionImages"></div>
+        <div class="options" id="options"></div>
+
+        <!-- Rich Pedagogical Feedback Card -->
+        <div class="feedback hidden" id="feedback">
+          <div class="feedback-header">
+            <span class="feedback-status" id="fbStatus"></span>
+            <span class="feedback-answer" id="fbAnswer"></span>
+          </div>
+          <div class="feedback-body">
+            <div class="feedback-block why-block">
+              <div class="block-label">💡 Lý do phân tích:</div>
+              <div class="block-content" id="fbWhy"></div>
+            </div>
+            <div class="feedback-block rule-block">
+              <div class="block-label">📜 Quy tắc cốt lõi:</div>
+              <div class="block-content" id="fbRule"></div>
+            </div>
+            <div class="feedback-block tip-block">
+              <div class="block-label">🎯 Mẹo nhận diện nhanh:</div>
+              <div class="block-content" id="fbTip"></div>
+            </div>
+          </div>
+          <div class="feedback-actions" id="fbActions">
+            <button class="sub-btn" id="btnToggleSteps">🔍 Xem phân tích 5 bước</button>
+            <button class="sub-btn" id="btnSimilar">🎯 Luyện câu cùng quy tắc</button>
+          </div>
+          <div class="step-breakdown-box hidden" id="stepBreakdownBox"></div>
+        </div>
+
+        <div class="quiz-actions">
+          <button class="secondary" id="prevBtn">← Câu trước</button>
+          <button class="primary" id="checkBtn">Kiểm tra</button>
+          <button class="primary hidden" id="nextBtn">Câu tiếp →</button>
+          <button class="primary hidden" id="examSubmitCardBtn">Nộp bài thi</button>
+        </div>
+      </section>
+
+      <!-- Mock Exam Result Screen Card -->
+      <section class="exam-result-card hidden" id="examResultCard">
+        <div class="exam-result-header">
+          <div class="exam-status-badge pass" id="examStatusBadge">ĐẠT</div>
+          <h2 id="examResultTitle" style="margin: 6px 0 10px; font-size: 22px;">Kết quả thi thử lý thuyết</h2>
+          <div id="examFailureReason" class="exam-fail-reason hidden"></div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-box"><span class="stat-num" id="examScore">28 / 30</span><span class="stat-lbl">Điểm số</span></div>
+          <div class="stat-box"><span class="stat-num good" id="examCorrect">28</span><span class="stat-lbl">Số câu đúng</span></div>
+          <div class="stat-box"><span class="stat-num bad" id="examWrong">2</span><span class="stat-lbl">Số câu sai</span></div>
+          <div class="stat-box"><span class="stat-num" id="examUnanswered">0</span><span class="stat-lbl">Bỏ trống</span></div>
+          <div class="stat-box"><span class="stat-num bad" id="examCriticalWrong">0</span><span class="stat-lbl">Sai điểm liệt</span></div>
+          <div class="stat-box"><span class="stat-num" id="examTimeElapsed">17:34</span><span class="stat-lbl">Thời gian làm bài</span></div>
+        </div>
+
+        <div class="exam-result-actions">
+          <button class="primary" id="btnExamReview">🔍 Xem lại bài thi</button>
+          <button class="secondary" id="btnExamRetry">🔄 Thi đề mới</button>
+        </div>
+      </section>
+
+      <!-- Statistics & Weakness Dashboard Card -->
+      <section class="stats-card hidden" id="statsCard">
+        <div class="stats-header">
+          <h2>📊 Thống kê tiến độ & Phân loại điểm yếu</h2>
+          <p>Hệ thống theo dõi độ thuần thục theo từng quy tắc để bạn tập trung ôn vào phần còn yếu.</p>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-box"><span class="stat-num" id="statAnswered">0 / 600</span><span class="stat-lbl">Đã làm</span></div>
+          <div class="stat-box"><span class="stat-num good" id="statAccuracy">0%</span><span class="stat-lbl">Tỉ lệ đúng</span></div>
+          <div class="stat-box"><span class="stat-num bad" id="statWrong">0</span><span class="stat-lbl">Câu sai</span></div>
+          <div class="stat-box"><span class="stat-num" id="statMastered">0</span><span class="stat-lbl">Đã thành thạo</span></div>
+        </div>
+
+        <div class="stats-section">
+          <h3>Tiến độ theo 6 chương</h3>
+          <div class="chapter-progress-list" id="chapterProgressList"></div>
+        </div>
+
+        <div class="stats-section">
+          <div class="section-title-row">
+            <h3>🎯 Đánh giá điểm yếu theo Quy tắc Sa hình (Chương 6)</h3>
+            <span class="subtle-text">Sắp xếp theo thứ tự cần cải thiện</span>
+          </div>
+          <div class="topic-weakness-list" id="topicWeaknessList"></div>
+        </div>
+
+        <div class="stats-actions">
+          <button class="primary" id="statsBackBtn">Tiếp tục luyện tập</button>
+        </div>
+      </section>
+
+      <section class="empty-card hidden" id="emptyCard">
+        <h2 id="emptyTitle">Chưa có câu nào</h2>
+        <p id="emptyText"></p>
+        <button class="primary" id="emptyBack">Quay lại 600 câu</button>
+      </section>
+
+      <footer class="source-note">Dữ liệu câu hỏi và đáp án từ tài liệu Cục CSGT 2025. Tích hợp giải thích, quy tắc và Sa hình Trainer hỗ trợ ghi nhớ bản chất.</footer>
+    </main>
+  </div>
+
+  <div class="scrim hidden" id="scrim"></div>
+  <script src="data/questions.js"></script>
+  <script src="data/rules.js"></script>
+  <script src="js/exam.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

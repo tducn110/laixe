@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-09-08T08:21:07.840051+00:00",
+  "pdf_path": "source/official-600-questions-2025.pdf",
+  "pdf_found": false,
+  "status": "MISSING_SOURCE_PDF",
+  "data_integrity": {
+    "total_questions": 600,
+    "id_range_valid": true,
+    "answer_bounds_valid": true,
+    "image_assets_checked": 319,
+    "image_assets_found": 319,
+    "image_assets_missing": 0,
+    "candidate_critical_count": 60,
+    "certified_critical_count": 0
+  },
+  "source_certification": {
+    "status": "UNVERIFIED",
+    "reason": "Official source PDF binary not found at 'source/official-600-questions-2025.pdf'.",
+    "certified_questions": 0,
+    "unverified_questions": 600,
+    "mismatches_count": 0
+  },
+  "mismatches": []
+}
