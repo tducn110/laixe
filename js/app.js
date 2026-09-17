@@ -27,13 +27,16 @@
     chapterProgressList: $('#chapterProgressList'), topicWeaknessList: $('#topicWeaknessList'),
     questionNumber: $('#questionNumber'), chapterName: $('#chapterName'), topicName: $('#topicName'),
     criticalBadge: $('#criticalBadge'),
+    resetToggleLabel: $('#resetToggleLabel'), resetToggleCheckbox: $('#resetToggleCheckbox'),
     trainerModeBtn: $('#trainerModeBtn'), trainerPanel: $('#trainerPanel'), trainerCloseBtn: $('#trainerCloseBtn'),
     trainerStepper: $('#trainerStepper'), trainerStepContent: $('#trainerStepContent'),
     trainerPrevStep: $('#trainerPrevStep'), trainerNextStep: $('#trainerNextStep'),
     questionText: $('#questionText'), questionImages: $('#questionImages'), options: $('#options'),
-    feedback: $('#feedback'), fbStatus: $('#fbStatus'), fbAnswer: $('#fbAnswer'), fbWhy: $('#fbWhy'), fbRule: $('#fbRule'), fbTip: $('#fbTip'),
+    feedback: $('#feedback'), feedbackDetails: $('#feedbackDetails'), fbStatus: $('#fbStatus'), fbAnswer: $('#fbAnswer'), fbWhy: $('#fbWhy'), fbRule: $('#fbRule'), fbTip: $('#fbTip'),
+    fbResetBlock: $('#fbResetBlock'), fbResetCountdown: $('#fbResetCountdown'),
     fbActions: $('#fbActions'), btnToggleSteps: $('#btnToggleSteps'), btnSimilar: $('#btnSimilar'), stepBreakdownBox: $('#stepBreakdownBox'),
     prevBtn: $('#prevBtn'), checkBtn: $('#checkBtn'), nextBtn: $('#nextBtn'), bookmarkBtn: $('#bookmarkBtn'),
+    swipeHint: $('#swipeHint'), toastContainer: $('#toastContainer'),
     examSubmitCardBtn: $('#examSubmitCardBtn'),
     wrongBadge: $('#wrongBadge'), bookmarkBadge: $('#bookmarkBadge'), resetProgress: $('#resetProgress'),
     jumpControl: $('#jumpControl'), jumpInput: $('#jumpInput'), jumpBtn: $('#jumpBtn'),
@@ -48,14 +51,74 @@
     index: 0,
     selected: null,
     checked: false,
+    sessionAnswers: {},
     trainerOpen: false,
     trainerStep: 0,
     history: loadProgress(),
+    resetOnWrong: true,
+    resetTimer: null,
+    resetInterval: null,
+    lastAnswerCorrect: null,
     // Exam domain state
     examSession: null,
     examTimerInterval: null,
     examReview: false
   };
+  state.resetOnWrong = state.history.resetOnWrong !== undefined ? state.history.resetOnWrong : true;
+
+  let activeToast = null;
+  let activeToastTimeout = null;
+
+  function showToast(msg, type = 'info', duration = 2400) {
+    if (!el.toastContainer) return;
+
+    if (activeToast) {
+      clearTimeout(activeToastTimeout);
+      activeToast.remove();
+      activeToast = null;
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    let icon = 'ℹ️';
+    if (type === 'good') icon = '✅';
+    else if (type === 'bad') icon = '❌';
+    else if (type === 'warn') icon = '⚠️';
+
+    toast.innerHTML = `<span style="font-size:16px; flex-shrink:0;">${icon}</span><div>${msg}</div>`;
+    el.toastContainer.appendChild(toast);
+    activeToast = toast;
+
+    activeToastTimeout = setTimeout(() => {
+      toast.classList.add('fade-out');
+      setTimeout(() => {
+        if (toast.parentNode) toast.remove();
+        if (activeToast === toast) activeToast = null;
+      }, 250);
+    }, duration);
+  }
+
+  function clearResetTimer() {
+    if (state.resetTimer) {
+      clearTimeout(state.resetTimer);
+      state.resetTimer = null;
+    }
+    if (state.resetInterval) {
+      clearInterval(state.resetInterval);
+      state.resetInterval = null;
+    }
+  }
+
+  function returnToFirstQuestion() {
+    clearResetTimer();
+    state.index = 0;
+    if (state.mode === 'all') {
+      state.history.lastQuestion = 1;
+      saveProgress();
+    }
+    showToast('↺ Đã quay lại Câu 1 để ôn luyện từ đầu!', 'info', 2200);
+    render();
+  }
 
   function formatTime(totalSeconds) {
     const m = Math.floor(totalSeconds / 60);
@@ -72,10 +135,11 @@
         bookmarks: d.bookmarks || [],
         lastQuestion: d.lastQuestion || 1,
         topicStats: d.topicStats || {},
-        mastery: d.mastery || {}
+        mastery: d.mastery || {},
+        resetOnWrong: d.resetOnWrong !== undefined ? d.resetOnWrong : true
       };
     } catch {
-      return { answers: {}, wrong: [], bookmarks: [], lastQuestion: 1, topicStats: {}, mastery: {} };
+      return { answers: {}, wrong: [], bookmarks: [], lastQuestion: 1, topicStats: {}, mastery: {}, resetOnWrong: true };
     }
   }
 
@@ -275,6 +339,7 @@
     state.index = 0;
     state.selected = null;
     state.checked = false;
+    state.sessionAnswers = {};
 
     $$('.nav-btn,.chapter-btn').forEach(b => b.classList.remove('active'));
 
@@ -391,12 +456,24 @@
 
     state.index = Math.max(0, Math.min(state.index, state.queue.length - 1));
     const q = qById(state.queue[state.index]);
-    state.selected = null;
-    state.checked = false;
+    if (state.mode !== 'exam' && state.sessionAnswers[q.id]) {
+      state.selected = state.sessionAnswers[q.id].selected;
+      state.checked = state.sessionAnswers[q.id].checked;
+    } else {
+      state.selected = null;
+      state.checked = false;
+    }
+    clearResetTimer();
+    state.lastAnswerCorrect = null;
 
     if (state.mode === 'all') {
+      if (el.resetToggleLabel) el.resetToggleLabel.classList.remove('hidden');
+      if (el.resetToggleCheckbox) el.resetToggleCheckbox.checked = !!state.resetOnWrong;
+      if (el.resetToggleLabel) el.resetToggleLabel.classList.toggle('active', !!state.resetOnWrong);
       state.history.lastQuestion = q.id;
       saveProgress();
+    } else {
+      if (el.resetToggleLabel) el.resetToggleLabel.classList.add('hidden');
     }
     const c = chapterFor(q);
     el.questionNumber.textContent = `Câu ${q.id}`;
@@ -455,12 +532,18 @@
         </button>`;
       }).join('');
     } else {
-      el.options.innerHTML = q.options.map((opt, i) =>
-        `<button class="option" data-option="${i}">
+      el.options.innerHTML = q.options.map((opt, i) => {
+        let optClass = 'option';
+        if (state.selected === i) optClass += ' selected';
+        if (state.checked) {
+          if (i === q.answer) optClass += ' correct';
+          else if (state.selected === i && i !== q.answer) optClass += ' incorrect';
+        }
+        return `<button class="${optClass}" data-option="${i}" ${state.checked ? 'disabled' : ''}>
           <span class="option-key">${String.fromCharCode(65 + i)}</span>
           <span>${escapeHtml(opt)}</span>
-        </button>`
-      ).join('');
+        </button>`;
+      }).join('');
     }
 
     $$('.option').forEach(b => b.addEventListener('click', () => selectOption(Number(b.dataset.option))));
@@ -480,14 +563,24 @@
       el.examSubmitCardBtn.classList.add('hidden');
     } else {
       // Standard practice mode
-      el.feedback.className = 'feedback hidden';
       el.stepBreakdownBox.classList.add('hidden');
       el.stepBreakdownBox.innerHTML = '';
       el.btnToggleSteps.textContent = '🔍 Xem phân tích 5 bước';
-      el.checkBtn.classList.remove('hidden');
-      el.nextBtn.classList.add('hidden');
       el.examSubmitCardBtn.classList.add('hidden');
-      el.checkBtn.disabled = true;
+      if (el.fbResetBlock) el.fbResetBlock.classList.add('hidden');
+
+      if (state.checked) {
+        renderFeedback(q, qMeta, state.selected === q.answer, state.selected);
+        el.checkBtn.classList.add('hidden');
+        el.nextBtn.classList.remove('hidden');
+        el.nextBtn.textContent = 'Câu tiếp →';
+      } else {
+        el.feedback.className = 'feedback hidden';
+        el.checkBtn.classList.remove('hidden');
+        el.nextBtn.classList.add('hidden');
+        el.nextBtn.textContent = 'Câu tiếp →';
+        el.checkBtn.disabled = state.selected === null;
+      }
     }
 
     el.prevBtn.disabled = state.index === 0;
@@ -529,6 +622,13 @@
       el.btnSimilar.dataset.topic = qMeta.topic;
     } else {
       el.btnSimilar.classList.add('hidden');
+    }
+
+    if (state.mode === 'chapter' && correct) {
+      el.feedbackDetails.style.display = 'none';
+    } else {
+      el.feedbackDetails.style.display = '';
+      el.feedbackDetails.removeAttribute('open');
     }
 
     el.feedback.classList.remove('hidden');
@@ -601,6 +701,8 @@
 
     if (state.checked) return;
     state.selected = i;
+    state.sessionAnswers[q.id] = state.sessionAnswers[q.id] || {};
+    state.sessionAnswers[q.id].selected = i;
     $$('.option').forEach((b, j) => b.classList.toggle('selected', i === j));
     el.checkBtn.disabled = false;
   }
@@ -608,9 +710,13 @@
   function check() {
     if (state.selected === null || state.checked) return;
     state.checked = true;
-
     const q = qById(state.queue[state.index]);
+    state.sessionAnswers[q.id] = state.sessionAnswers[q.id] || {};
+    state.sessionAnswers[q.id].checked = true;
+    clearResetTimer();
+
     const correct = state.selected === q.answer;
+    state.lastAnswerCorrect = correct;
 
     $$('.option').forEach((b, i) => {
       b.disabled = true;
@@ -656,6 +762,42 @@
 
     el.checkBtn.classList.add('hidden');
     el.nextBtn.classList.remove('hidden');
+
+    const correctLetter = String.fromCharCode(65 + q.answer);
+    if (correct) {
+      showToast(`✅ Chính xác! Đáp án đúng là ${correctLetter}.`, 'good', 2000);
+      el.nextBtn.textContent = 'Câu tiếp →';
+      if (el.fbResetBlock) el.fbResetBlock.classList.add('hidden');
+    } else {
+      if (state.mode === 'all' && state.resetOnWrong) {
+        showToast(`❌ Sai rồi! Đáp án đúng: ${correctLetter}. Đang quay lại câu 1...`, 'bad', 2500);
+        if (el.fbResetBlock) {
+          el.fbResetBlock.classList.remove('hidden');
+          if (el.fbResetCountdown) el.fbResetCountdown.textContent = '2';
+        }
+        let countdown = 2;
+        el.nextBtn.textContent = `↺ Về câu 1 ngay (${countdown}s)`;
+        state.resetInterval = setInterval(() => {
+          countdown--;
+          if (countdown > 0) {
+            el.nextBtn.textContent = `↺ Về câu 1 ngay (${countdown}s)`;
+            if (el.fbResetCountdown) el.fbResetCountdown.textContent = String(countdown);
+          } else {
+            clearInterval(state.resetInterval);
+            state.resetInterval = null;
+          }
+        }, 1000);
+
+        state.resetTimer = setTimeout(() => {
+          returnToFirstQuestion();
+        }, 2000);
+      } else {
+        showToast(`❌ Chưa chính xác! Đáp án đúng là ${correctLetter}.`, 'bad', 2500);
+        el.nextBtn.textContent = 'Câu tiếp →';
+        if (el.fbResetBlock) el.fbResetBlock.classList.add('hidden');
+      }
+    }
+
     updateProgress();
   }
 
@@ -685,6 +827,11 @@
   }
 
   function next() {
+    clearResetTimer();
+    if (state.mode === 'all' && state.checked && state.lastAnswerCorrect === false && state.resetOnWrong) {
+      returnToFirstQuestion();
+      return;
+    }
     if (state.index < state.queue.length - 1) {
       state.index++;
       render();
@@ -692,6 +839,7 @@
   }
 
   function prev() {
+    clearResetTimer();
     if (state.index > 0) {
       state.index--;
       render();
@@ -936,22 +1084,225 @@
     }
   });
 
+  if (el.resetToggleCheckbox) {
+    el.resetToggleCheckbox.addEventListener('change', () => {
+      state.resetOnWrong = el.resetToggleCheckbox.checked;
+      state.history.resetOnWrong = state.resetOnWrong;
+      saveProgress();
+      if (el.resetToggleLabel) el.resetToggleLabel.classList.toggle('active', state.resetOnWrong);
+      showToast(
+        state.resetOnWrong
+          ? '✓ Đã bật: Khi làm sai bộ 600 câu sẽ tự động quay lại câu 1'
+          : '✕ Đã tắt: Khi làm sai không tự quay lại câu 1',
+        'info',
+        2200
+      );
+    });
+  }
+
+  // Swipe Gesture Handling (Touch & Mouse drag)
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+  let touchOptionIndex = null;
+  let isDraggingCard = false;
+
+  function handleSwipeStart(x, y, target) {
+    touchStartX = x;
+    touchStartY = y;
+    touchStartTime = Date.now();
+    isDraggingCard = true;
+    const optEl = target ? target.closest('.option') : null;
+    touchOptionIndex = optEl && optEl.dataset.option !== undefined ? Number(optEl.dataset.option) : null;
+  }
+
+  function handleSwipeMove(x, y, event) {
+    if (!isDraggingCard) return;
+    const deltaX = x - touchStartX;
+    const deltaY = y - touchStartY;
+
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+      if (event && event.cancelable) event.preventDefault();
+      el.quizCard.classList.add('swiping');
+      const dampedX = Math.max(-100, Math.min(100, deltaX * 0.25));
+      el.quizCard.style.transform = `translateX(${dampedX}px)`;
+    }
+  }
+
+  function handleSwipeEnd(x, y) {
+    if (!isDraggingCard) return;
+    isDraggingCard = false;
+    el.quizCard.classList.remove('swiping');
+    el.quizCard.style.transform = '';
+
+    const deltaX = x - touchStartX;
+    const deltaY = y - touchStartY;
+    const elapsed = Date.now() - touchStartTime;
+
+    const isHorizontalSwipe = Math.abs(deltaX) >= 45 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2 && elapsed < 800;
+
+    if (!isHorizontalSwipe) return;
+
+    if (deltaX < 0) {
+      onSwipeLeft();
+    } else {
+      onSwipeRight();
+    }
+  }
+
+  function onSwipeLeft() {
+    if (state.mode === 'exam' && !state.examReview) {
+      if (state.index === state.queue.length - 1) {
+        submitExam();
+      } else {
+        next();
+      }
+      return;
+    }
+
+    if (!state.checked) {
+      if (state.selected !== null) {
+        check();
+      } else if (touchOptionIndex !== null) {
+        selectOption(touchOptionIndex);
+        check();
+      } else {
+        showToast('👉 Vui lòng chọn đáp án trước khi quẹt qua để kiểm tra!', 'info', 2000);
+      }
+    } else {
+      if (state.mode === 'all' && state.lastAnswerCorrect === false && state.resetOnWrong) {
+        returnToFirstQuestion();
+      } else {
+        next();
+      }
+    }
+  }
+
+  function onSwipeRight() {
+    prev();
+  }
+
+  // Touch gesture bindings
+  el.quizCard.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    handleSwipeStart(t.clientX, t.clientY, e.target);
+  }, { passive: true });
+
+  el.quizCard.addEventListener('touchmove', e => {
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    handleSwipeMove(t.clientX, t.clientY, e);
+  }, { passive: false });
+
+  el.quizCard.addEventListener('touchend', e => {
+    if (e.changedTouches.length !== 1) return;
+    const t = e.changedTouches[0];
+    handleSwipeEnd(t.clientX, t.clientY);
+  }, { passive: true });
+
+  el.quizCard.addEventListener('touchcancel', () => {
+    isDraggingCard = false;
+    el.quizCard.classList.remove('swiping');
+    el.quizCard.style.transform = '';
+  }, { passive: true });
+
+  // Mouse drag support for desktop browsers
+  let isMouseDown = false;
+  el.quizCard.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (e.target.closest('button:not(.option), input, a')) return;
+    isMouseDown = true;
+    handleSwipeStart(e.clientX, e.clientY, e.target);
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!isMouseDown) return;
+    handleSwipeMove(e.clientX, e.clientY, e);
+  });
+
+  window.addEventListener('mouseup', e => {
+    if (!isMouseDown) return;
+    isMouseDown = false;
+    handleSwipeEnd(e.clientX, e.clientY);
+  });
+
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT') return;
+    
+    // R to reset current chapter
+    if ((e.key === 'r' || e.key === 'R') && ['chapter', 'all', 'critical', 'bookmarked', 'wrong'].includes(state.mode)) {
+      state.index = 0;
+      state.sessionAnswers = {};
+      saveProgress();
+      renderQuestion();
+      showToast('Đã quay lại từ đầu!', 'info');
+      return;
+    }
+
+    const q = (state.queue && state.queue.length > 0) ? qById(state.queue[state.index]) : null;
+
     if (state.mode === 'exam' && !state.examReview) {
       if (/^[1-4]$/.test(e.key)) selectOption(Number(e.key) - 1);
-      else if (['a', 'b', 'c', 'd', 'A', 'B', 'C', 'D'].includes(e.key)) selectOption(e.key.toUpperCase().charCodeAt(0) - 65);
-      else if (e.key === 'Enter' || e.key === 'ArrowRight') next();
-      else if (e.key === 'ArrowLeft') prev();
+      else if (e.key === 'ArrowUp' || e.key.toLowerCase() === 'w') {
+        let current = state.selected === null ? 0 : state.selected;
+        if (state.selected !== null) current = (current - 1 + q.options.length) % q.options.length;
+        selectOption(current);
+      }
+      else if (e.key === 'ArrowDown' || e.key.toLowerCase() === 's') {
+        let current = state.selected === null ? -1 : state.selected;
+        selectOption((current + 1) % q.options.length);
+      }
+      else if (e.key === 'Enter' || e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') next();
+      else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') prev();
     } else {
       if (!state.checked && /^[1-4]$/.test(e.key)) selectOption(Number(e.key) - 1);
-      else if (!state.checked && ['a', 'b', 'c', 'd', 'A', 'B', 'C', 'D'].includes(e.key)) selectOption(e.key.toUpperCase().charCodeAt(0) - 65);
-      else if (e.key === 'Enter') { state.checked ? next() : check(); }
-      else if (e.key === 'ArrowRight' && state.checked) next();
-      else if (e.key === 'ArrowLeft') prev();
+      else if (!state.checked && (e.key === 'ArrowUp' || e.key.toLowerCase() === 'w')) {
+        let current = state.selected === null ? 0 : state.selected;
+        if (state.selected !== null) current = (current - 1 + q.options.length) % q.options.length;
+        selectOption(current);
+      }
+      else if (!state.checked && (e.key === 'ArrowDown' || e.key.toLowerCase() === 's')) {
+        let current = state.selected === null ? -1 : state.selected;
+        selectOption((current + 1) % q.options.length);
+      }
+      else if (e.key === 'Enter') {
+        if (!state.checked) {
+          check();
+        } else if (state.mode === 'all' && state.lastAnswerCorrect === false && state.resetOnWrong) {
+          returnToFirstQuestion();
+        } else {
+          next();
+        }
+      }
+      else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') {
+        if (state.checked || state.mode === 'exam') {
+          if (state.mode === 'all' && state.lastAnswerCorrect === false && state.resetOnWrong) {
+            returnToFirstQuestion();
+          } else {
+            next();
+          }
+        }
+      }
+      else if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') {
+        prev();
+      }
     }
   });
 
-  window._app = { state, setMode, submitExam, showExamResults };
+  window._app = {
+    state,
+    setMode,
+    submitExam,
+    showExamResults,
+    check,
+    next,
+    prev,
+    returnToFirstQuestion,
+    onSwipeLeft,
+    onSwipeRight,
+    selectOption,
+    showToast
+  };
   setMode('all');
 })();

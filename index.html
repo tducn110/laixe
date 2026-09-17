@@ -63,6 +63,10 @@
           <span class="pill subtle" id="chapterName"></span>
           <span class="pill topic-pill hidden" id="topicName"></span>
           <span class="pill critical-pill hidden" id="criticalBadge">⚠ CÂU ĐIỂM LIỆT</span>
+          <label class="reset-toggle-label hidden" id="resetToggleLabel" title="Khi trả lời sai ở bộ 600 câu sẽ tự động quay về câu đầu tiên">
+            <input type="checkbox" id="resetToggleCheckbox" checked />
+            <span>↺ Sai về câu 1</span>
+          </label>
           <button class="trainer-toggle-btn hidden" id="trainerModeBtn">⚡ Phân tích 5 bước</button>
           <button class="bookmark" id="bookmarkBtn" aria-label="Đánh dấu câu hỏi" title="Đánh dấu">☆</button>
         </div>
@@ -91,20 +95,29 @@
             <span class="feedback-status" id="fbStatus"></span>
             <span class="feedback-answer" id="fbAnswer"></span>
           </div>
-          <div class="feedback-body">
-            <div class="feedback-block why-block">
-              <div class="block-label">💡 Lý do phân tích:</div>
-              <div class="block-content" id="fbWhy"></div>
-            </div>
-            <div class="feedback-block rule-block">
-              <div class="block-label">📜 Quy tắc cốt lõi:</div>
-              <div class="block-content" id="fbRule"></div>
-            </div>
-            <div class="feedback-block tip-block">
-              <div class="block-label">🎯 Mẹo nhận diện nhanh:</div>
-              <div class="block-content" id="fbTip"></div>
+          <div class="feedback-block reset-block hidden" id="fbResetBlock">
+            <div class="block-label">↺ CHẾ ĐỘ 600 CÂU: SAI VỀ CÂU 1</div>
+            <div class="block-content">
+              Bạn đã trả lời sai câu này! Hệ thống sẽ tự động đưa bạn về <strong>Câu 1</strong> sau <strong id="fbResetCountdown">2</strong>s để rèn luyện lại từ đầu.
             </div>
           </div>
+          <details class="feedback-details" id="feedbackDetails">
+            <summary class="feedback-summary">💡 Xem chi tiết giải thích & mẹo</summary>
+            <div class="feedback-body">
+              <div class="feedback-block why-block">
+                <div class="block-label">💡 Lý do phân tích:</div>
+                <div class="block-content" id="fbWhy"></div>
+              </div>
+              <div class="feedback-block rule-block">
+                <div class="block-label">📜 Quy tắc cốt lõi:</div>
+                <div class="block-content" id="fbRule"></div>
+              </div>
+              <div class="feedback-block tip-block">
+                <div class="block-label">🎯 Mẹo nhận diện nhanh:</div>
+                <div class="block-content" id="fbTip"></div>
+              </div>
+            </div>
+          </details>
           <div class="feedback-actions" id="fbActions">
             <button class="sub-btn" id="btnToggleSteps">🔍 Xem phân tích 5 bước</button>
             <button class="sub-btn" id="btnSimilar">🎯 Luyện câu cùng quy tắc</button>
@@ -113,6 +126,7 @@
         </div>
 
         <div class="quiz-actions">
+          <span class="swipe-hint" id="swipeHint">👈 Quẹt qua để xác nhận / chuyển câu</span>
           <button class="secondary" id="prevBtn">← Câu trước</button>
           <button class="primary" id="checkBtn">Kiểm tra</button>
           <button class="primary hidden" id="nextBtn">Câu tiếp →</button>
@@ -185,6 +199,7 @@
     </main>
   </div>
 
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
   <div class="scrim hidden" id="scrim"></div>
   <script src="data/questions.js"></script>
   <script src="data/rules.js"></script>

@@ -1,17 +1,20 @@
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const puppeteer = require('puppeteer-core');
+const fs = require('node:fs');
 
-const CHROME_PATH = '/usr/bin/google-chrome';
+const CHROME_PATH = process.env.CHROME_PATH || '/usr/bin/google-chrome';
 const INDEX_PATH = `file://${path.resolve(__dirname, '../index.html')}`;
+const hasChrome = fs.existsSync(CHROME_PATH);
 
-describe('Browser-Level Acceptance Tests (Chrome Headless & Mobile Viewport)', () => {
+describe('Browser-Level Acceptance Tests (Chrome Headless & Mobile Viewport)', { skip: !hasChrome && `Chrome binary not found at ${CHROME_PATH}` }, () => {
   let browser;
   let page;
 
   before(async () => {
-    browser = await puppeteer.launch({
+    if (!hasChrome) return;
+    const puppeteer = await import('puppeteer-core');
+    browser = await puppeteer.default.launch({
       executablePath: CHROME_PATH,
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
