@@ -335,6 +335,55 @@ describe('Swipe Confirmation & 600 Questions Auto-Reset Mechanisms', () => {
     assert.equal(app.state.history.lastQuestion, 1, 'Last question must reset to 1 in history');
   });
 
+  test('4b. Restart clears all previous attempt results but keeps bookmarks and preferences', () => {
+    const { sandbox, elements, mockStorage } = env;
+    const app = sandbox.window._app;
+    const q1 = sandbox.window.DRIVING_QUESTIONS[0];
+    const q2 = sandbox.window.DRIVING_QUESTIONS[1];
+
+    app.state.history.bookmarks = [1, 2];
+    app.selectOption(q1.answer);
+    app.check();
+    app.state.index = 1;
+    app.selectOption((q2.answer + 1) % q2.options.length);
+    app.state.resetOnWrong = false;
+    app.state.history.resetOnWrong = false;
+
+    app.returnToFirstQuestion();
+
+    assert.equal(app.state.index, 0);
+    assert.equal(app.state.selected, null);
+    assert.equal(app.state.checked, false);
+    assert.equal(app.state.lastAnswerCorrect, null);
+    assert.equal(Object.keys(app.state.sessionAnswers).length, 0);
+    assert.equal(Object.keys(app.state.history.answers).length, 0);
+    assert.equal(app.state.history.wrong.length, 0);
+    assert.equal(Object.keys(app.state.history.topicStats).length, 0);
+    assert.equal(Object.keys(app.state.history.mastery).length, 0);
+    assert.equal(app.state.history.lastQuestion, 1);
+    assert.equal(app.state.history.bookmarks.join(','), '1,2');
+    assert.equal(app.state.history.resetOnWrong, false);
+    assert.equal(elements.scoreText.textContent, 'Đúng 0 · Sai 0');
+
+    const persisted = JSON.parse(mockStorage['gplx600-progress-v1']);
+    assert.equal(Object.keys(persisted.answers).length, 0);
+    assert.equal(persisted.wrong.length, 0);
+    assert.equal(persisted.bookmarks.join(','), '1,2');
+    assert.equal(persisted.lastQuestion, 1);
+  });
+
+  test('4c. Ordinary navigation to question 1 does not erase an attempt', () => {
+    const app = env.sandbox.window._app;
+    const q1 = env.sandbox.window.DRIVING_QUESTIONS[0];
+    app.selectOption(q1.answer);
+    app.check();
+    app.next();
+    app.prev();
+    assert.equal(app.state.index, 0);
+    assert.equal(app.state.checked, true);
+    assert.equal(Object.keys(app.state.history.answers).length, 1);
+  });
+
   test('5. In 600 câu mode, answering CORRECTLY advances to next question without returning to Question 1', () => {
     const { sandbox } = env;
     const app = sandbox.window._app;
