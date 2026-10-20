@@ -109,14 +109,28 @@
     }
   }
 
+  // A return caused by a wrong answer starts a fresh 600-question attempt.
+  // Bookmarks and the reset-on-wrong preference are not answer results.
+  function clearPracticeResults() {
+    state.sessionAnswers = {};
+    state.selected = null;
+    state.checked = false;
+    state.lastAnswerCorrect = null;
+    state.history.answers = {};
+    state.history.wrong = [];
+    state.history.topicStats = {};
+    state.history.mastery = {};
+    state.history.lastQuestion = 1;
+    saveProgress();
+  }
+
   function returnToFirstQuestion() {
     clearResetTimer();
     state.index = 0;
     if (state.mode === 'all') {
-      state.history.lastQuestion = 1;
-      saveProgress();
+      clearPracticeResults();
     }
-    showToast('↺ Đã quay lại Câu 1 để ôn luyện từ đầu!', 'info', 2200);
+    showToast('↺ Đã về Câu 1. Kết quả lượt trước đã được xóa!', 'info', 2200);
     render();
   }
 
@@ -1230,13 +1244,17 @@
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT') return;
     
-    // R to reset current chapter
+    // R restarts the 600-question attempt or the current practice queue.
     if ((e.key === 'r' || e.key === 'R') && ['chapter', 'all', 'critical', 'bookmarked', 'wrong'].includes(state.mode)) {
-      state.index = 0;
-      state.sessionAnswers = {};
-      saveProgress();
-      renderQuestion();
-      showToast('Đã quay lại từ đầu!', 'info');
+      if (state.mode === 'all') {
+        returnToFirstQuestion();
+      } else {
+        clearResetTimer();
+        state.index = 0;
+        state.sessionAnswers = {};
+        render();
+        showToast('Đã quay lại từ đầu!', 'info');
+      }
       return;
     }
 
